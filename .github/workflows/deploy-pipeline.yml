@@ -1,0 +1,70 @@
+# .github/workflows/deploy-pipeline.yml
+
+name: Deploy SageMaker Pipeline
+# Author: Rajinikanth Vadla
+# Description: Manual workflow to deploy SageMaker ML pipeline
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+
+  deploy:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials using OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: github-actions-session
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Verify AWS Authentication
+        run: aws sts get-caller-identity
+
+      - name: Install Python Dependencies
+        run: |
+          # Author: Rajinikanth Vadla
+          # Install all required Python packages for SageMaker pipeline
+          python -m pip install --upgrade pip
+          pip install boto3 sagemaker==2.214.0 pandas numpy scikit-learn xgboost mlflow
+          # Verify sagemaker installation
+          python -c "import sagemaker; print(f'SageMaker version: {sagemaker.__version__}')"
+
+      - name: Upload Pipeline Scripts to S3
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+        run: |
+          python scripts/upload_pipeline_scripts.py ${{ secrets.S3_BUCKET }}
+
+      - name: Create/Update SageMaker Pipeline
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          SAGEMAKER_ROLE_ARN: ${{ secrets.SAGEMAKER_ROLE_ARN }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+        run: |
+          # Author: Rajinikanth Vadla
+          # Set Python path and create/update SageMaker pipeline
+          export PYTHONPATH="${PYTHONPATH}:${PWD}"
+          python scripts/create_pipeline.py ${{ secrets.SAGEMAKER_ROLE_ARN }} ${{ secrets.S3_BUCKET }}
+
+      - name: Trigger SageMaker Pipeline
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          python scripts/trigger_pipeline.py
+
+      - name: Update Evaluation Script with MLflow URI
+        run: |
+          echo "MLflow URI will be set when EKS is deployed"
