@@ -1,5 +1,4 @@
 # AWS SageMaker Quota Issue - Fix Guide
-# Author: Rajinikanth Vadla
 
 ## Problem
 Your AWS account doesn't have quota for `ml.m5.large` processing instances.
